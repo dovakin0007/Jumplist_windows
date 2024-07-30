@@ -2,7 +2,8 @@
 name = "jumplist_win"
 version = "0.0.1"
 edition = "2021"
-description = "A small crate to create and add custom jumplist in windows apps"
+description = "A small crate to create and add custom jumplist in windows apps"\
+license = "Apache-2.0"
 
 [dependencies.windows]
 version = "0.58.0"
