@@ -1,6 +1,6 @@
 [package]
-name = "untitled2"
-version = "0.1.0"
+name = "jumplist-win"
+version = "0.0.1"
 edition = "2021"
 
 [dependencies.windows]
