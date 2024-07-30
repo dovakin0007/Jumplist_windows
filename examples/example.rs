@@ -4,7 +4,7 @@ use windows::{
     Win32::UI::WindowsAndMessaging::*,
 };
 
-use untitled2::*;
+use jumplist_win::*;
 
 fn main() -> Result<()> {
     unsafe {
