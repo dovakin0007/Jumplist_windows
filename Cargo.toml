@@ -2,6 +2,7 @@
 name = "jumplist_win"
 version = "0.0.1"
 edition = "2021"
+description = "A small crate to create and add custom jumplist in windows apps"
 
 [dependencies.windows]
 version = "0.58.0"
