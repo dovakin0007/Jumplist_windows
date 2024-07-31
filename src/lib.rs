@@ -6,12 +6,14 @@ use windows::Win32::UI::Shell::PropertiesSystem::{IPropertyStore, PROPERTYKEY};
 use windows::Win32::Storage::EnhancedStorage::PKEY_Title;
 use windows::Win32::UI::Shell::Common::IObjectArray;
 
+
+///TODO Add a way to create and add KnownJumplist and update it Recent and Frequent to create automatic jumplist
 pub fn LOWORD(l: usize) -> usize {
     l & 0xffff
 }
 
 pub trait JumpListItemTrait {
-    fn get_link(&self) -> Result<IShellLinkW, Box<dyn Error>>;
+     fn get_link(&self) -> Result<IShellLinkW, Box<dyn Error>>;
 }
 
 #[derive(Default)]
@@ -35,7 +37,7 @@ pub struct JumpListItemLink {
 
 pub fn to_w_str(str: String) -> Vec<u16> {
     let mut new_str = str.encode_utf16().collect::<Vec<u16>>();
-    new_str.push(0);
+    // new_str.push(0);
     new_str
 }
 
@@ -62,18 +64,25 @@ impl JumpListItemLink {
 }
 
 impl JumpListItemTrait for JumpListItemLink {
-    fn get_link(&self) -> Result<IShellLinkW, Box<dyn Error>> {
+      fn get_link(&self) -> Result<IShellLinkW, Box<dyn Error>> {
         let shell_link_guid: *const GUID = &ShellLink;
         let link: IShellLinkW = unsafe { CoCreateInstance(shell_link_guid, None, CLSCTX_INPROC_SERVER)? };
 
         if let Some(command) = &self.command {
-            let command_pwstr = PWSTR(to_w_str(command.clone()).as_mut_ptr());
+
+            let mut str = String::from(command).encode_utf16().collect::<Vec<u16>>();
+            str.push(0);
+
+            let command_pwstr = PWSTR(str.as_mut_ptr());
+
             unsafe { link.SetPath(command_pwstr)?; }
         }
 
         if let Some(args) = &self.command_args {
             let command_line = args.iter().map(|arg| format!(" \"{}\"", arg.replace('"', "\\\""))).collect::<String>();
+
             let command_line_pwstr = PWSTR(to_w_str(command_line).as_mut_ptr());
+
             unsafe { link.SetArguments(command_line_pwstr)?; }
         }
 
@@ -111,7 +120,7 @@ impl JumpListItemSeparator {
 }
 
 impl JumpListItemTrait for JumpListItemSeparator {
-    fn get_link(&self) -> Result<IShellLinkW, Box<dyn Error>> {
+     fn get_link(&self) -> Result<IShellLinkW, Box<dyn Error>> {
         let shell_link_guid: *const GUID = &ShellLink;
         let link: IShellLinkW = unsafe { CoCreateInstance(shell_link_guid, None, CLSCTX_INPROC_SERVER)? };
 
@@ -155,7 +164,15 @@ impl JumpListCategory {
 
         for (index, item) in self.items.iter().enumerate() {
             if let Ok(link) = item.get_link() {
-                collection.AddObject(&link)?;
+                match self.jl_category_type {
+                     JumpListCategoryType::Recent =>{
+                        SHAddToRecentDocs(SHARD_SHELLITEM.0 as u32, Some(link.as_raw()))
+                    }
+                    _ => {
+                        collection.AddObject(&link)?;
+                    }
+                }
+
             } else {
                 items_to_remove.push(index);
             }
@@ -243,7 +260,7 @@ impl JumpList {
         &self.task
     }
 
-    pub unsafe fn update(&mut self) {
+    pub unsafe fn update(&mut self, shell_link: Option<IShellLinkW>) {
         self.jumplist.BeginList::<IObjectArray>(&mut 10).unwrap();
         let is_command_empty = self.task.items.is_empty();
         if self.task.visible && !is_command_empty {
@@ -273,6 +290,7 @@ impl JumpList {
                 }
                 JumpListCategoryType::Recent => {
                     if category.jump_list_category.visible && !category.jump_list_category.items.is_empty() {
+                        ///TODO Add a way to create and add KnowJumplist and update it
                         if let Err(err) = self.jumplist.AppendKnownCategory(KDC_RECENT) {
                             eprintln!("Error appending recent category: {:?}", err);
                             categories_to_remove.push(index);
@@ -281,10 +299,15 @@ impl JumpList {
                 }
                 JumpListCategoryType::Frequent => {
                     if category.jump_list_category.visible && !category.jump_list_category.items.is_empty() {
+                        ///TODO Add a way to create and add KnowJumplist and update it
                         if let Err(err) = self.jumplist.AppendKnownCategory(KDC_FREQUENT) {
                             eprintln!("Error appending frequent category: {:?}", err);
                             categories_to_remove.push(index);
+                        }else{
+
+                            // SHAddToRecentDocs(SHARD_SHELLITEM.0 as u32, Some(shell_link.clone().unwrap().into_raw()));
                         }
+
                     }
                 }
                 JumpListCategoryType::Task => {
@@ -302,7 +325,7 @@ impl JumpList {
 
         // Remove categories that failed to append
         for index in categories_to_remove.iter().rev() {
-            println!("worked");
+
             self.custom.remove(*index);
         }
 
