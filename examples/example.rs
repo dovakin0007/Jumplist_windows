@@ -76,45 +76,37 @@ extern "system" fn wndproc(window: HWND, message: u32, wparam: WPARAM, lparam: L
 unsafe fn create_jump_list() {
     let mut jump_list = JumpList::new();
 
-    // Creating a custom category
-    let mut custom_category = JumpListCategoryCustom::new(JumpListCategoryType::Custom, Some(String::from("Custom Category")));
-    let args = vec![String::from("arg1"), String::from("arg2")];
-    let mut link1 = JumpListItemLink::new(
-        Some(args.clone()),
-        String::from("Custom Ite 1"),
-        Some(String::from("C:\\Path\\To\\Executable.exe")),
-        Some(String::from("C:\\Path\\To\\Icon.ico")),
+    // Creating a custom category for VS Code
+    let mut custom_category = JumpListCategoryCustom::new(JumpListCategoryType::Custom, Some(String::from("VS Code Tasks")));
+
+    // Directory to open in VS Code
+    let directory_to_open = String::from("C:\\Users\\dovak\\OneDrive\\Documents\\lua");
+
+    // Arguments to pass to VS Code (open the directory)
+    let args = vec![directory_to_open.clone()];
+
+    // Creating a JumpList item for VS Code
+    let mut vs_code_link = JumpListItemLink::new(
+        Some(args),
+        String::from("Open in VS Code"),
+        Some(String::from("C:\\Users\\dovak\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe")), // Path to the VS Code executable
+        Some(String::from("C:\\Path\\To\\VSCodeIcon.ico")), // Optional: Path to the VS Code icon
         0,
     );
-    link1.set_working_dir(String::from("C:\\"));
+
+    // Set the working directory (can be the directory you're opening or any other)
+    vs_code_link.set_working_dir(directory_to_open.clone());
+
+    // Add the item to the custom category
     custom_category.jump_list_category.set_visible(true);
-    custom_category.jump_list_category.items.push(Box::new(link1));
+    custom_category.jump_list_category.items.push(Box::new(vs_code_link));
+
+    // Add the custom category to the JumpList
     jump_list.add_category(custom_category);
 
-    // Creating a recent category
-    let mut recent_category = JumpListCategoryCustom::new(JumpListCategoryType::Recent, None);
-    recent_category.jump_list_category.set_visible(true);
-    jump_list.add_category(recent_category);
+    // Optionally, add other categories like recent, frequent, or tasks
+    // ...
 
-    // Creating a frequent category
-    let mut frequent_category = JumpListCategoryCustom::new(JumpListCategoryType::Frequent, None);
-    frequent_category.jump_list_category.set_visible(true);
-    jump_list.add_category(frequent_category);
-
-    // Creating a task category
-    let mut task_category = JumpListCategoryCustom::new(JumpListCategoryType::Task, Some(String::from("Tasks")));
-    let mut link2 = JumpListItemLink::new(
-        Some(args.clone()),
-        String::from("Task Item"),
-        Some(String::from("C:\\Path\\To\\Executable2.exe")),
-        None,
-        0,
-    );
-    link2.set_working_dir(String::from("D:\\"));
-    task_category.jump_list_category.set_visible(true);
-    task_category.jump_list_category.items.push(Box::new(link2));
-    jump_list.add_category(task_category);
-
+    // Update the JumpList to apply changes
     jump_list.update();
 }
-

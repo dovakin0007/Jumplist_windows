@@ -1,7 +1,8 @@
+#![allow(warnings)]
 use std::error::Error;
 use windows::core::{GUID, Interface, PROPVARIANT, PWSTR};
 use windows::Win32::System::Com::{CLSCTX_INPROC_SERVER, CoCreateInstance};
-use windows::Win32::UI::Shell::{EnumerableObjectCollection, Common::IObjectCollection, IShellLinkW, ShellLink, ICustomDestinationList, DestinationList, KDC_RECENT, KDC_FREQUENT, IApplicationDestinations, SHAddToRecentDocs, SHARD_SHELLITEM};
+use windows::Win32::UI::Shell::{EnumerableObjectCollection, Common::IObjectCollection, IShellLinkW, ShellLink, ICustomDestinationList, DestinationList, KDC_RECENT, KDC_FREQUENT, IApplicationDestinations, SHAddToRecentDocs, SHARD_SHELLITEM, IShellItem, SHCreateItemInKnownFolder, FOLDERID_Documents, KF_FLAG_DEFAULT};
 use windows::Win32::UI::Shell::PropertiesSystem::{IPropertyStore, PROPERTYKEY};
 use windows::Win32::Storage::EnhancedStorage::PKEY_Title;
 use windows::Win32::UI::Shell::Common::IObjectArray;
@@ -156,10 +157,22 @@ impl JumpListCategory {
         }
     }
 
+    // unsafe fn check_removed_item(remove_shell_item: IObjectArray) -> bool {
+    //     let no_error = &remove_shell_item.GetCount().is_ok();
+    //     if *no_error {
+    //         let item_count = &remove_shell_item.GetCount().unwrap();
+    //         for index in item_count {
+    //          match remove_shell_item.GetAt::<IShellItem>(*index){
+    //             Ok(shell_item) => {
+    //                shell_item.Compare()
+    //             }
+    //          }
+    //         }
+    //     }
+    // }
     pub unsafe fn get_category(&mut self) -> Result<IObjectCollection, Box<dyn Error>> {
         let obj_collection: *const GUID = &EnumerableObjectCollection;
         let collection: IObjectCollection = CoCreateInstance(obj_collection, None, CLSCTX_INPROC_SERVER)?;
-
         let mut items_to_remove = vec![];
 
         for (index, item) in self.items.iter().enumerate() {
@@ -259,17 +272,30 @@ impl JumpList {
     pub fn get_tasks(&mut self) -> &JumpListCategory {
         &self.task
     }
-
-    pub unsafe fn update(&mut self, shell_link: Option<IShellLinkW>) {
-        self.jumplist.BeginList::<IObjectArray>(&mut 10).unwrap();
-        let is_command_empty = self.task.items.is_empty();
-        if self.task.visible && !is_command_empty {
-            if let Ok(value) = self.task.get_category() {
-                if let Err(err) = self.jumplist.AddUserTasks(&value) {
-                    eprintln!("Error adding user tasks: {:?}", err);
+    pub unsafe fn update(&mut self) {
+        let object_array = match self.jumplist.BeginList::<IObjectArray>(&mut 10) {
+            Ok(obj) => Some(obj),
+            _ => None
+        };
+        let rem_obj = match self.jumplist.GetRemovedDestinations::<IObjectArray>() {
+            Ok(removed_obj) => Some(removed_obj),
+            _ => None
+        };
+        let rem_obj_count= &rem_obj.as_ref().unwrap().GetCount().unwrap();
+        let object_array_count = &object_array.as_ref().unwrap().GetCount().unwrap();
+        let mut is_present_in_removed = false;
+        for i in 0..*rem_obj_count{
+            for j in 0..*object_array_count{
+                let obj = object_array.as_ref().unwrap();
+                let rem = object_array.as_ref().unwrap();
+                if obj.GetAt::<IShellLinkW>(i).unwrap() == rem.GetAt::<IShellLinkW>(j).unwrap() {
+                    is_present_in_removed = true;
                 }
             }
         }
+
+
+        if is_present_in_removed==false {
 
         let mut categories_to_remove = vec![];
 
@@ -279,7 +305,20 @@ impl JumpList {
                     if category.jump_list_category.visible && !category.jump_list_category.items.is_empty() {
                         if let Some(title) = &category.title {
                             let title_wstr = to_w_str(title.clone());
-                            if let Ok(value) = category.jump_list_category.get_category() {
+                            if let Ok(mut value) = category.jump_list_category.get_category() {
+                                let mut items_to_remove = vec![];
+                                for (item_index, item) in category.jump_list_category.items.iter().enumerate() {
+                                    if let Err(err) = item.get_link() {
+                                        eprintln!("Error creating link for item: {:?}", err);
+                                        items_to_remove.push(item_index);
+                                    }
+                                }
+
+                                // Remove items that failed to create links
+                                for index in items_to_remove.iter().rev() {
+                                    category.jump_list_category.items.remove(*index);
+                                }
+
                                 if let Err(err) = self.jumplist.AppendCategory(PWSTR(title_wstr.as_ptr() as *mut u16), &value) {
                                     eprintln!("Error appending custom category: {:?}", err);
                                     categories_to_remove.push(index);
@@ -290,7 +329,6 @@ impl JumpList {
                 }
                 JumpListCategoryType::Recent => {
                     if category.jump_list_category.visible && !category.jump_list_category.items.is_empty() {
-                        ///TODO Add a way to create and add KnowJumplist and update it
                         if let Err(err) = self.jumplist.AppendKnownCategory(KDC_RECENT) {
                             eprintln!("Error appending recent category: {:?}", err);
                             categories_to_remove.push(index);
@@ -299,20 +337,28 @@ impl JumpList {
                 }
                 JumpListCategoryType::Frequent => {
                     if category.jump_list_category.visible && !category.jump_list_category.items.is_empty() {
-                        ///TODO Add a way to create and add KnowJumplist and update it
                         if let Err(err) = self.jumplist.AppendKnownCategory(KDC_FREQUENT) {
                             eprintln!("Error appending frequent category: {:?}", err);
                             categories_to_remove.push(index);
-                        }else{
-
-                            // SHAddToRecentDocs(SHARD_SHELLITEM.0 as u32, Some(shell_link.clone().unwrap().into_raw()));
                         }
-
                     }
                 }
                 JumpListCategoryType::Task => {
                     if category.jump_list_category.visible && !category.jump_list_category.items.is_empty() {
-                        if let Ok(value) = category.jump_list_category.get_category() {
+                        if let Ok(mut value) = category.jump_list_category.get_category() {
+                            let mut items_to_remove = vec![];
+                            for (item_index, item) in category.jump_list_category.items.iter().enumerate() {
+                                if let Err(err) = item.get_link() {
+                                    eprintln!("Error creating link for item: {:?}", err);
+                                    items_to_remove.push(item_index);
+                                }
+                            }
+
+                            // Remove items that failed to create links
+                            for index in items_to_remove.iter().rev() {
+                                category.jump_list_category.items.remove(*index);
+                            }
+
                             if let Err(err) = self.jumplist.AddUserTasks(&value) {
                                 eprintln!("Error adding user tasks: {:?}", err);
                                 categories_to_remove.push(index);
@@ -325,14 +371,15 @@ impl JumpList {
 
         // Remove categories that failed to append
         for index in categories_to_remove.iter().rev() {
-
             self.custom.remove(*index);
         }
 
         if let Err(err) = self.jumplist.CommitList() {
             eprintln!("Error committing jump list: {:?}", err);
         }
+        }
     }
+
 
     pub unsafe fn delete_list(&self) {
         if let Err(err) = self.jumplist.DeleteList(None) {
@@ -344,4 +391,5 @@ impl JumpList {
         self.custom.push(category);
     }
 }
+
 
