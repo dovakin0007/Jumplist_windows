@@ -61,8 +61,6 @@ extern "system"  fn wndproc(window: HWND, message: u32, wparam: WPARAM, lparam: 
             WM_PAINT => {
                 println!("WM_PAINT");
                 _ = ValidateRect(window, None);
-
-                x.update();
                 LRESULT(0)
             }
             WM_DESTROY => {
@@ -76,7 +74,7 @@ extern "system"  fn wndproc(window: HWND, message: u32, wparam: WPARAM, lparam: 
         }
     }
 }
-unsafe fn create_jump_list(){
+unsafe fn create_jump_list() {
     let mut jump_list = JumpList::new();
 
     // Creating a custom category for VS Code
@@ -89,6 +87,24 @@ unsafe fn create_jump_list(){
     let args = vec![directory_to_open.clone()];
 
     // Creating a JumpList item for VS Code
+
+    let workspace_to_open_old = String::from("C:\\Users\\dovak\\OneDrive\\Documents\\lua\\myworkspace.code-workspace");
+    let args_workspace_old = vec![workspace_to_open_old.clone()];
+
+    let mut vs_code_workspace_link_old = JumpListItemLink::new(
+        Some(args_workspace_old),
+        String::from("Open Workspace in VS Code"),
+        Some(String::from("C:\\Users\\dovak\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe")),
+        Some(String::from("C:\\Path\\To\\VSCodeIcon.ico")),
+        0,
+    );
+
+    vs_code_workspace_link_old.set_working_dir(directory_to_open.clone());
+
+    custom_category.jump_list_category.add_item(Box::new(vs_code_workspace_link_old));
+
+
+
     let mut vs_code_link = JumpListItemLink::new(
         Some(args),
         String::from("Open in VS Code"),
@@ -102,7 +118,7 @@ unsafe fn create_jump_list(){
 
     // Add the item to the custom category
     custom_category.jump_list_category.set_visible(true);
-    custom_category.jump_list_category.items.push(Box::new(vs_code_link));
+    custom_category.jump_list_category.add_item(Box::new(vs_code_link));
 
     // Additional item: Open VS Code with a specific file
     let file_to_open = String::from("C:\\Users\\dovak\\OneDrive\\Documents\\lua\\script.lua");
@@ -118,7 +134,7 @@ unsafe fn create_jump_list(){
 
     vs_code_file_link.set_working_dir(directory_to_open.clone());
 
-    custom_category.jump_list_category.items.push(Box::new(vs_code_file_link));
+    custom_category.jump_list_category.add_item(Box::new(vs_code_file_link));
 
     // Additional item: Open VS Code with a specific workspace
     let workspace_to_open = String::from("C:\\Users\\dovak\\OneDrive\\Documents\\lua\\myworkspace.code-workspace");
@@ -134,7 +150,7 @@ unsafe fn create_jump_list(){
 
     vs_code_workspace_link.set_working_dir(directory_to_open);
 
-    custom_category.jump_list_category.items.push(Box::new(vs_code_workspace_link));
+    custom_category.jump_list_category.add_item(Box::new(vs_code_workspace_link));
 
     // Add the custom category to the JumpList
     jump_list.add_category(custom_category);
@@ -142,5 +158,6 @@ unsafe fn create_jump_list(){
     jump_list.update();
 
     // Update the JumpList to apply changes
-
 }
+
+

@@ -7,12 +7,7 @@ use windows::Win32::UI::Shell::PropertiesSystem::{IPropertyStore, PROPERTYKEY};
 use windows::Win32::Storage::EnhancedStorage::PKEY_Title;
 use windows::Win32::UI::Shell::Common::IObjectArray;
 
-
 ///TODO Add a way to create and add KnownJumplist and update it Recent and Frequent to create automatic jumplist
-pub fn LOWORD(l: usize) -> usize {
-    l & 0xffff
-}
-
 pub trait JumpListItemTrait {
      fn get_link(&self) -> Result<IShellLinkW, Box<dyn Error>>;
 }
@@ -46,29 +41,21 @@ impl JumpListItemLink {
             working_dir: None,
         }
     }
-
     pub fn get_working_dir(&self) -> &Option<String> {
         &self.working_dir
     }
-
     pub fn set_working_dir(&mut self, wd: String) {
         self.working_dir = Some(wd);
     }
 }
-
 impl JumpListItemTrait for JumpListItemLink {
       fn get_link(&self) -> Result<IShellLinkW, Box<dyn Error>> {
         let shell_link_guid: *const GUID = &ShellLink;
         let link: IShellLinkW = unsafe { CoCreateInstance(shell_link_guid, None, CLSCTX_INPROC_SERVER)? };
-
         if let Some(command) = &self.command {
-
             let mut str = String::from(command).encode_utf16().collect::<Vec<u16>>();
             str.push(u16::try_from('\0').unwrap());
-
-
             let new_str = PWSTR(str.as_mut_ptr());
-
             unsafe { link.SetPath(new_str)?; }
         }
         if let Some(args) = &self.command_args {
@@ -125,17 +112,15 @@ impl JumpListItemTrait for JumpListItemSeparator {
         Ok(link)
     }
 }
-
 pub enum JumpListCategoryType {
     Custom = 0,
     Task = 1,
     Recent = 2,
     Frequent = 3,
 }
-
 pub struct JumpListCategory {
     pub jl_category_type: JumpListCategoryType,
-    pub items: Vec<Box<dyn JumpListItemTrait>>,
+    items: Vec<Box<dyn JumpListItemTrait>>,
     visible: bool,
 }
 
@@ -147,21 +132,35 @@ impl JumpListCategory {
             items: vec![],
         }
     }
+    pub fn add_item(&mut self, item: Box<dyn JumpListItemTrait>) {
+        self.items.retain(|x| unsafe {
+            let val = x.get_link().unwrap().cast::<IPropertyStore>().unwrap();
+            let item_to_be_add = item.get_link().unwrap().cast::<IPropertyStore>().unwrap();
+            if val.GetValue(&PKEY_Title).unwrap().to_string() == item_to_be_add.GetValue(&PKEY_Title).unwrap().to_string() {
+                false
+            }else {
+                true
+            }
+        }
+        );
+        self.items.push(item);
+        self.items.reverse()
+
+    }
     pub unsafe fn get_category(&mut self) -> Result<IObjectCollection, Box<dyn Error>> {
         let obj_collection: *const GUID = &EnumerableObjectCollection;
         let collection: IObjectCollection = CoCreateInstance(obj_collection, None, CLSCTX_INPROC_SERVER)?;
         let mut items_to_remove = vec![];
+
         for (index, item) in self.items.iter().enumerate() {
             if let Ok(link) = item.get_link() {
                 match self.jl_category_type {
                      JumpListCategoryType::Recent | JumpListCategoryType::Frequent =>{
-
                     }
                     _ => {
                         collection.AddObject(&link)?;
                     }
                 }
-
             } else {
                 items_to_remove.push(index);
             }
@@ -170,7 +169,6 @@ impl JumpListCategory {
         for index in items_to_remove.iter().rev() {
             self.items.remove(*index);
         }
-
         Ok(collection)
     }
     pub fn get_visible(&self) -> bool {
@@ -185,7 +183,6 @@ pub struct JumpListCategoryCustom {
     pub jump_list_category: JumpListCategory,
     pub title: Option<String>,
 }
-
 impl JumpListCategoryCustom {
     pub fn new(jl_type: JumpListCategoryType, title: Option<String>) -> Self {
         match jl_type {
@@ -245,10 +242,6 @@ impl JumpList {
         &self.task
     }
     pub unsafe fn update(&mut self) {
-        let object_array = match self.jumplist.BeginList::<IObjectArray>(&mut 10) {
-            Ok(obj) => Some(obj),
-            _ => None,
-        };
         let rem_obj = match self.jumplist.GetRemovedDestinations::<IObjectArray>() {
             Ok(removed_obj) => Some(removed_obj),
             _ => None,
@@ -280,7 +273,6 @@ impl JumpList {
                 }
             }
         }
-
 
         // Remaining logic for adding the categories to the jumplist
         for category in &mut self.custom {

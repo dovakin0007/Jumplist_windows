@@ -137,7 +137,7 @@ unsafe fn create_jump_list() {
 
     // Add the item to the custom category
     custom_category.jump_list_category.set_visible(true);
-    custom_category.jump_list_category.items.push(Box::new(vs_code_link));
+    custom_category.jump_list_category.add_item(Box::new(vs_code_link));
 
     // Add the custom category to the JumpList
     jump_list.add_category(custom_category);
