@@ -11,3 +11,4 @@ features = ["Win32_System_WinRT", "Win32_UI_WindowsAndMessaging", "Win32_Graphic
 
 
 [dependencies]
+log = "0.4.22"
