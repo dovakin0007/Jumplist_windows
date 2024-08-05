@@ -144,8 +144,6 @@ impl JumpListCategory {
         }
         );
         self.items.push(item);
-        self.items.reverse()
-
     }
     pub unsafe fn get_category(&mut self) -> Result<IObjectCollection, Box<dyn Error>> {
         let obj_collection: *const GUID = &EnumerableObjectCollection;
@@ -242,6 +240,10 @@ impl JumpList {
         &self.task
     }
     pub unsafe fn update(&mut self) {
+        let object_array = match self.jumplist.BeginList::<IObjectArray>(&mut 10) {
+            Ok(obj) => Some(obj),
+            _ => None,
+        };
         let rem_obj = match self.jumplist.GetRemovedDestinations::<IObjectArray>() {
             Ok(removed_obj) => Some(removed_obj),
             _ => None,
@@ -273,6 +275,7 @@ impl JumpList {
                 }
             }
         }
+
 
         // Remaining logic for adding the categories to the jumplist
         for category in &mut self.custom {
